@@ -6,17 +6,18 @@
 	 Office Ally reserves the right to persecute any entity who steals or applies this intellectual property without Office Ally's Consent.
 	--End Disclaimer 
 */
---// Testing confidence rating
+-- // Testing confidence rating
 USE DataExport
 
 
-DECLARE	@OASALT VARCHAR(25)
+DECLARE	v_OASALT VARCHAR(25)
     
-SELECT
-	@OASALT = 'OATEST'
+SET
+	v_OASALT = 'OATEST'
   
-IF OBJECT_ID('tempdb..#tmpHASH') IS NOT NULL
+IF OBJECT_ID('tempdb..#tmpHASH') IS NOT NULL THEN
 	DROP TABLE #tmpHASH;
+END IF;
 WITH	cteImport
 		  AS (
 			  SELECT DISTINCT TOP 10000
@@ -34,24 +35,24 @@ WITH	cteImport
 			  , X.Gender
 			  , DateOfBirth
 			  , (HASHBYTES('SHA1',
-						   (@OASALT + (CONVERT(varchar(8), `DateOfBirth`, (112)) + '~' + `Gender`) + '~' + `FirstName`)
-						   + '~' + `LastName`)) `FullNameHash`
+						   (CONCAT(v_OASALT , (CONVERT(varchar(8), `DateOfBirth`,) (112)) + Concat('~' , `Gender`)) + Concat('~' , `FirstName`))
+						   + Concat('~' , `LastName`))) `FullNameHash`
 			  , (HASHBYTES('SHA1',
-						   (@OASALT + (CONVERT(varchar(8), `DateOfBirth`, (112)) + '~' + `Gender`) + '~'
-							+ LEFT(`FirstName` + 'XXX', (3))) + '~' + LEFT(`LastName` + 'XXX', (3)))) `ParHash`
+						   (CONCAT(v_OASALT , (CONVERT(varchar(8), `DateOfBirth`,) (112)) + Concat('~' , `Gender`)) + Concat('~'
+							, LEFT(CONCAT(`FirstName` , 'XXX'), (3)))) + Concat('~' , LEFT(CONCAT(`LastName` , 'XXX'), (3))))) `ParHash`
 			  , orgLastName
 			  , orgFirstName
 			  FROM
 				(
 				 SELECT
 					ROW_NUMBER() OVER (ORDER BY C.LastName) idx
-				  , CONVERT(DATETIME, DateOfBirth) `DateOfBirth`
-				  , UPPER(ISNULL(CONVERT(CHAR(1), GENDER), 'U')) `Gender`
+				  , CONVERT(DateOfBirth, DATETIME) `DateOfBirth`
+				  , UPPER(IFNULL(CONVERT(CHAR(1), GENDER), 'U')) `Gender`
 				  , UPPER(OADWH_HASH.dbo.RemoveNonAlphaNumeric(CONVERT(VARCHAR(25), FirstName))) `FirstName`
 				  , UPPER(OADWH_HASH.dbo.RemoveNonAlphaNumeric(CONVERT(VARCHAR(25), LastName))) `LastName`
 				  , C.LastName orgLastName
 				  , C.FirstName orgFirstName
-		  --, '' MiddleName
+		  -- , '' MiddleName
 				 FROM
 					cteImport C
 				) X
@@ -69,8 +70,8 @@ WITH	cteImport
 		C.idx
 	  , C.hashID
 	  , TH.ParHash
-	  , 'AP' + RIGHT('00000000' + CONVERT(VARCHAR(10), 100 + C.hashID), 8) xRefID
-	  , DATEADD(DAY, (CASE WHEN FLOOR((RAND() * 2) + 1) = 1 THEN -1
+	  , CONCAT('AP' , RIGHT(Concat('00000000' , CONVERT(VARCHAR(10), 100 + C.hashID)), 8)) xRefID
+	  , TIMESTAMPADD(DAY, (CASE WHEN FLOOR((RAND() * 2) + 1) = 1 THEN -1
 						   ELSE 1
 					  END) * FLOOR(RAND() * (60) + 1), TH.DateOfBirth) NewDateOfBirth
 	  , TH.Gender
@@ -85,11 +86,12 @@ WITH	cteImport
 		TH.idx
 
 
-IF OBJECT_ID('tempdb..#tmpMatch') IS NOT NULL
+IF OBJECT_ID('tempdb..#tmpMatch') IS NOT NULL THEN
 	DROP TABLE #tmpMatch
 	
---// we can only tolerate unique claimIDs, so duplicate patients need to be excluded
+-- // we can only tolerate unique claimIDs, so duplicate patients need to be excluded
 ;
+END IF;
 WITH	cte
 		  AS (
 			  SELECT
@@ -116,8 +118,9 @@ WITH	cte
 		JOIN OADWH_HASH.dbo.vPatientHash_HCFA PHH  ON PHH.ParHash = c.ParHash
 	
 	
-IF OBJECT_ID('tempdb..#tmpStageName') IS NOT NULL
-	DROP TABLE #tmpStageName
+IF OBJECT_ID('tempdb..#tmpStageName') IS NOT NULL THEN
+	DROP TABLE #tmpStageName;
+END IF;
 
 SELECT
 	TM.idx
@@ -142,15 +145,16 @@ FROM
 WHERE
 	1 = 1	
 
-IF OBJECT_ID('tempdb..#tmpReview') IS NOT NULL
-	DROP TABLE #tmpReview
+IF OBJECT_ID('tempdb..#tmpReview') IS NOT NULL THEN
+	DROP TABLE #tmpReview;
+END IF;
 
 SELECT
 	TSN.idx
   , TSN.hashID
   , TSN.ParHash
   , TSN.ClaimID
-	  --// 
+	  -- // 
   , TSN.srcLastName
   , TSN.srcFirstName
   , TSN.srcRnaLastName
@@ -159,14 +163,14 @@ SELECT
   , TSN.fndRnaFirstName
   , TSN.fndLastName
   , TSN.fndFirstName
-	  --// 
+	  -- // 
   , CASE WHEN TSN.srcRnaLastName = TSN.fndRnaLastName
 			  AND TSN.srcRnaFirstName = TSN.fndRnaFirstName THEN 100
 		 WHEN TSN.srcRnaLastName = TSN.fndRnaLastName
 			  AND LEFT(TSN.srcRnaFirstName, 4) = LEFT(TSN.fndRnaFirstName, 4) THEN 90
-			--//----
+			-- //----
 		 WHEN TSN.srcRnaLastName = TSN.fndRnaLastName THEN 85
-			--//---
+			-- //---
 		 WHEN LEFT(TSN.srcRnaLastName, 5) = LEFT(TSN.fndRnaLastName, 5)
 			  AND LEFT(TSN.srcRnaFirstName, 4) = LEFT(TSN.fndRnaFirstName, 4) THEN 80
 		 WHEN SOUNDEX(TSN.srcLastName) = SOUNDEX(TSN.fndLastName)
@@ -183,7 +187,8 @@ INTO
 FROM
 	#tmpStageName TSN
 	
-IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary	
+IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL THEN DROP TABLE #tmpSummary;
+END IF;	
 	
 
 			  SELECT
@@ -287,10 +292,10 @@ FROM
 	JOIN OfficeAlly_SS.dbo.PATIENTS P ON P.PATIENT_ID = H.PATIENT_ID
 WHERE
 	1 = 1
-	--AND  (
-	--LEFT(UPPER(OADWH_HASH.dbo.RemoveNonAlphaNumeric(CONVERT(VARCHAR(25), TAAPI.orgFirstName))) ,4) =LEFT(UPPER(OADWH_HASH.dbo.RemoveNonAlphaNumeric(CONVERT(VARCHAR(25), P.FIRST_NAME))) ,4) 
-	--AND LEFT(UPPER(OADWH_HASH.dbo.RemoveNonAlphaNumeric(CONVERT(VARCHAR(25), TAAPI.orgLastName))) ,4) =LEFT(UPPER(OADWH_HASH.dbo.RemoveNonAlphaNumeric(CONVERT(VARCHAR(25), P.LAST_NAME))) ,4) 
-	--)
+	-- AND  (
+	-- LEFT(UPPER(OADWH_HASH.dbo.RemoveNonAlphaNumeric(CONVERT(VARCHAR(25), TAAPI.orgFirstName))) ,4) =LEFT(UPPER(OADWH_HASH.dbo.RemoveNonAlphaNumeric(CONVERT(VARCHAR(25), P.FIRST_NAME))) ,4) 
+	-- AND LEFT(UPPER(OADWH_HASH.dbo.RemoveNonAlphaNumeric(CONVERT(VARCHAR(25), TAAPI.orgLastName))) ,4) =LEFT(UPPER(OADWH_HASH.dbo.RemoveNonAlphaNumeric(CONVERT(VARCHAR(25), P.LAST_NAME))) ,4) 
+	-- )
 GROUP BY
 	TM.hashID
   , TM.ParHash
